@@ -1,78 +1,66 @@
 name: "Build and deploy"
 on:
-  # Triggers the workflow on push event with conditions
+  # trigger workflow on push event on main branch
   push:
     branches:
       - main
+    
+    # ignore triggering workflow if there is any changes in below files.
     paths-ignore:
-      - .gitignore
       - README.md
-      - CONTRIBUTING.md
       - LICENSE
+      - CONTRIBUTING.md
+      - .gitignore
   
-  # Triggers the workflow on pull request event
+  # trigger the workflow on pull requent in main branch
   pull_request:
     branches:
       - main
 
-  # Allows you to run this workflow manually from the Actions tab
+  # run workspace manually from the actions tab, provide option to force deply
   workflow_dispatch:
     inputs:
       force_deploy:
-        description: "Force deploy"
-        required: true
-        default: false
         type: boolean
+        description: "Force deploy"
+        default: false
+        required: true
 
-# Always make sure the least amount of permissions is requested
-# and that the requested permissions are needed
+# setup permissions
 permissions:
   contents: read
   pages: write
   issues: write
   id-token: write
 
-# Allow one deployment at a time
+# restrice one deployment at a time, If other runs are queued, cancel the older runs
 concurrency:
   group: "pages"
   cancel-in-progress: true
 
 jobs:
 
-  ################################
-  ## Run all the tests and linters
-  ################################
-  # This is a good place to run all the tests necessary to build confidence
-  # that the changes introduced did not break anything.
+  # test job
+  # run all the necessary tests
   test:
     runs-on: ubuntu-latest
     env:
-      # Setting an environment variable with the value of a configuration variable
+      # set environment variable
       env_var: ${{ vars.ENV_CONTEXT_VAR }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Fetching the full git history is not required for this job
-          # this will save us some time and disk space.
           fetch-depth: 0
 
-      # This step will guarantee that we install Node 18 which is needed for our
-      # project. This will also make sure that the environment is ready to run.
+      # install node js 18
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
       
-      # Cache node_modules to speed up the workflow
-      # this will use the runner.os (ubuntu-latest) and the hash of the package-lock.json
-      # as the key to our cache. This means that if the package-lock.json changes
-      # the cache will be invalidated and the dependencies will be reinstalled.
-      # If the cache key is not found (first time running for example) the step will
-      # pass anyway.
-      #
-      # Read more: https://github.com/actions/cache
+      # install all the dependencies using cache to speed up the process
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -85,24 +73,19 @@ jobs:
       - name: Run all the linters
         run: npm run lint:all
 
-      # Run all the additional scripts that are required
+      # run scripts
       - name: Run all the scripts
         run: |
           node script/url-checker.js -t ${{ vars.URL_CHECKER_TIMEOUT }}
 
-      # Normally a step to run a test suite would go here
-      # but this project doesn't have tests, so we're going to skip
-      # that step.
-
-  #########################
-  ## Build our static site
-  #########################
+  # build job
   build:
     runs-on: ubuntu-latest
     
-    # This job will only run if the test job is successful
+    # make sure this job runs only if the test job is run successfully.
     needs: test
 
+    # setup pages using actions/configure-pages@v4
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -113,11 +96,13 @@ jobs:
         id: pages
         uses: actions/configure-pages@v4
 
+      # setup node 18
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
+      # install all dependencides (use cache to speed up)
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -127,52 +112,41 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      # This will build the distribution files for our site
-      # and store them in the _site/ directory.
       - name: Build distribution files
         run:
-          # Split the path prefix and extract the repository name
-          # ${{ github.repository }} is in the format owner/repo
-          # and we only need the repo name for the path prefix
+          # get the repo name by splitting the path prefix
           PATH_PREFIX="/$(echo '${{ github.repository }}' | cut -d'/' -f2-)/"
           npm run prod
 
-      # A Pages artifact must:
-      #  - be called github-pages
-      #  - be a single gzip archive containing a single tar file
-      # Read more: https://github.com/actions/upload-pages-artifact
+      # upload all the contents of the build _site as an artifact
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: "_site/"
   
-  #########################
-  ## Deploy to GitHub Pages
-  #########################
-  # This is the last job of our workflow. We will use the actions/deploy-pages action
-  # to deploy our site to GitHub Pages. This action will take care of everything for us.
+  # deploy job
   deploy:
     environment: 
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     
-    # This job will only run if the build job is successful
+    # restric deploying changes if any of the previous jobs fails
     needs: build
     
+    # deploy the site to GitHub pages
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # This step will report the status of the deployment to an issue
-      # in the repository. This is useful to keep track of the deployments
+      # report the status of deplyment
       - name: Report status
-        run: |
-          # Authenticate gh cli with the GITHUB_TOKEN
+        run: 
+          # authenticate to GitHub with GITHUB_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-          # Create a new issue with the deployment status
+          # create an issue that reports the status of the deployment
           gh issue create \
             --repo ${{ github.repository }} \
             --title "$(date -u) - Deployment: ${{ steps.deployment.outcome }}" \
