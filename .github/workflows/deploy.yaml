@@ -1,4 +1,4 @@
-name: "Build and deploy"
+name: "Build and deploy CorpX Documentation"
 on:
   # trigger workflow on push event on main branch
   push:
@@ -55,22 +55,22 @@ jobs:
           fetch-depth: 0
 
       # install node js 18
-      - name: Setup Node.js
+      - name: Setup Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: "18"
       
       # install all the dependencies using cache to speed up the process
-      - name: Cache node_modules
+      - name: Cache node_modules for Speedup
         uses: actions/cache@v4
         with:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
-      - name: Install Dependencies
+      - name: Install All Dependencies
         run: npm install
       
-      - name: Run all the linters
+      - name: Run all linters
         run: npm run lint:all
 
       # run scripts
@@ -97,7 +97,7 @@ jobs:
         uses: actions/configure-pages@v4
 
       # setup node 18
-      - name: Setup Node.js
+      - name: Setup Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: "18"
@@ -109,7 +109,7 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
 
-      - name: Install Dependencies
+      - name: Install All Dependencies
         run: npm install
 
       - name: Build distribution files
@@ -141,7 +141,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       # report the status of deplyment
-      - name: Report status
+      - name: Report Deployment Status
         run: |
           # authenticate to GitHub with GITHUB_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
