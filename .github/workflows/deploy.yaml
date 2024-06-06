@@ -142,7 +142,7 @@ jobs:
 
       # report the status of deplyment
       - name: Report status
-        run: 
+        run: |
           # authenticate to GitHub with GITHUB_TOKEN
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
